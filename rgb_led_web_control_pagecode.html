@@ -1,0 +1,134 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP32 · Multi RGB‑LED Controller</title>
+
+<!-- Google Font for a tech‑style look -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+/* ------------- your PCB‑inspired theme (unchanged) ------------- */
+:root{
+  --board-bg: radial-gradient(circle at 30% 30%, #002400 0%, #001400 100%);
+  --trace-grad: repeating-linear-gradient(135deg, rgba(0,255,140,.08) 0 4px, transparent 4px 12px);
+  --card-bg: rgba(0,48,0,.46);
+  --border: rgba(0,255,140,.25);
+  --accent: #00e676;
+  --btn-bg: #004d40;
+  --btn-hover: #00e676;
+  --text: #d1ffd1;
+}
+*{box-sizing:border-box;scrollbar-width:thin}
+body{
+  margin:0;padding:48px 16px;font-family:"Orbitron",Arial,sans-serif;letter-spacing:.35px;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:32px;
+  background:var(--board-bg), var(--trace-grad);color:var(--text);
+}
+h1{margin:0;font-size:clamp(1.6rem,3vw,2.4rem);font-weight:600;color:#aaffaa;text-shadow:0 0 8px rgba(0,255,110,.6);}
+h1 small{font-weight:300;font-size:.6em;color:#88ff88}
+.card{
+  width:340px;max-width:96%;padding:32px 26px 38px;border-radius:22px;
+  backdrop-filter:blur(18px) saturate(140%);
+  background:var(--card-bg);border:1.8px solid var(--border);
+  box-shadow:0 8px 18px rgba(0,0,0,.55), inset 0 0 8px rgba(0,255,110,.12);
+}
+#sample{
+  width:118px;height:118px;margin:22px auto 30px;border-radius:50%;
+  border:3px solid var(--border);transition:background .25s,border-color .25s,box-shadow .25s;
+  background:#000;box-shadow:0 0 26px rgba(0,0,0,.55), inset 0 0 14px rgba(0,0,0,.7);
+}
+select{
+  padding:8px 14px;font-size:.95rem;border-radius:14px;border:1.6px solid var(--border);
+  background:#002f02;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;
+  box-shadow:inset 0 0 6px rgba(0,255,140,.15);
+}
+select:focus{border-color:var(--accent);box-shadow:0 0 6px rgba(0,255,100,.45)}
+label{
+  display:inline-flex;align-items:center;gap:8px;margin:0 10px 18px;font-size:1.05rem;user-select:none;
+}
+input[type=checkbox]{
+  appearance:none;width:22px;height:22px;border:2.2px solid var(--border);border-radius:6px;cursor:pointer;position:relative;transition:.18s;
+  background:rgba(0,0,0,.35);
+}
+input[type=checkbox]:checked{
+  border-color:var(--accent);background:var(--accent);
+  box-shadow:0 0 8px rgba(0,255,110,.6);
+}
+input[type=checkbox]::after{
+  content:"";position:absolute;inset:2.5px;border-radius:4px;background:rgba(0,0,0,.22);opacity:0;transition:opacity .2s;
+}
+input[type=checkbox]:checked::after{opacity:1}
+button{
+  margin:14px 8px;padding:12px 36px;border:none;border-radius:16px;font-size:1.05rem;font-weight:600;
+  background:var(--btn-bg);color:var(--text);cursor:pointer;transition:.28s;letter-spacing:.4px;
+  box-shadow:0 0 0 rgba(0,0,0,0),0 3px 8px rgba(0,0,0,.45);
+}
+button:hover{
+  background:var(--btn-hover);color:#000;transform:translateY(-1px);
+  box-shadow:0 8px 18px rgba(0,255,110,.55),0 0 10px rgba(0,255,110,.6);
+}
+button:active{transform:translateY(0);box-shadow:0 4px 10px rgba(0,0,0,.55)}
+footer{margin-top:36px;font-size:.8rem;color:#55ff99;opacity:.6}
+</style>
+</head>
+
+<body>
+  <h1>Multi RGB‑LED <small>Controller</small></h1>
+
+  <div class="card">
+    <select id="led"></select>
+    <div id="sample"></div>
+
+    <label>R <input type="checkbox" id="r"></label>
+    <label>G <input type="checkbox" id="g"></label>
+    <label>B <input type="checkbox" id="b"></label><br>
+
+    <button onclick="setLed()">SET</button>
+    <button onclick="runBlink()">BLINK</button>
+  </div>
+
+  <footer>Made with &nbsp;ESP32 • 2025</footer>
+
+<!-- ------------- SCRIPT (logic untouched, bugs fixed) ------------- -->
+<script>
+const ESP32_IP = 'Enter your board ip';        // ← your board’s IP
+const NUM_LEDS = 3;                       // same as the firmware
+
+// build the LED selector
+const sel = document.getElementById('led');
+for (let i = 0; i < NUM_LEDS; i++) sel.add(new Option('LED ' + i, i));
+
+const cks = ['r','g','b'].map(id => document.getElementById(id));
+const sample = document.getElementById('sample');
+cks.forEach(c => c.onchange = preview);
+sel.onchange = preview;
+
+// ---------- live preview ----------
+function preview() {
+  const colour = `rgb(${cks.map(c => c.checked ? 255 : 0).join(',')})`;
+  sample.style.background = colour;
+
+  const active = cks.some(c => c.checked);
+  sample.style.borderColor = active ? 'var(--accent)' : 'var(--border)';
+  sample.style.boxShadow = active
+    ? `0 0 26px rgba(0,255,110,.55), inset 0 0 18px ${colour}`
+    : '0 0 26px rgba(0,0,0,.55), inset 0 0 14px rgba(0,0,0,.7)';
+}
+
+// ---------- send commands ----------
+function setLed() {
+  const led = sel.value,
+        [r, g, b] = cks.map(c => c.checked ? 1 : 0);
+
+  fetch(`http://${ESP32_IP}/set?L=${led}&R=${r}&G=${g}&B=${b}`)
+      .catch(e => alert('Network error: ' + e));
+}
+
+function runBlink() {
+  fetch(`http://${ESP32_IP}/blink`)
+      .catch(e => alert('Network error: ' + e));
+}
+
+preview();  // initialise preview on first load
+</script>
+</body></html>
+
