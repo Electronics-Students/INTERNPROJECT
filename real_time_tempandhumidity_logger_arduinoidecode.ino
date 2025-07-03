@@ -51,5 +51,5 @@ void loop() {
     Serial.println("WiFi Disconnected");
   }
 
-  delay(120000); // wait for 1 minutes (120000 ms)
+  delay(120000); // wait for 2 minutes (120000 ms)
 }
