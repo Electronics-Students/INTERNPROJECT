@@ -5,8 +5,8 @@
 #define DHTPIN 4          // DHT11 data pin connected to GPIO 4
 #define DHTTYPE DHT11     // DHT11 Sensor
 
-const char* ssid = "redmi125g";
-const char* password = "1234567890";
+const char* ssid = "enter wifi id";
+const char* password = "enter wifi pass";
 
 // Google Script Web App URL
 const char* serverName = "enter the google script id";
